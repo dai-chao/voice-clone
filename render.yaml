@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: voice-clone
+    runtime: docker
+    plan: starter
+    region: singapore
+    healthCheckPath: /health
