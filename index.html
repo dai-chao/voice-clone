@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>音色复刻</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230071e3'/%3E%3Ccircle cx='32' cy='32' r='9' fill='white'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --panel: #ffffff;
+      --ink: #1d1d1f;
+      --muted: #6e6e73;
+      --line: rgba(0, 0, 0, 0.08);
+      --fill: #f5f5f7;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --ok: #248a3d;
+      --bad: #de071c;
+      --radius: 20px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--font);
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: saturate(180%) blur(20px);
+      background: rgba(245, 245, 247, 0.72);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .nav-inner {
+      width: min(1080px, calc(100% - 40px));
+      margin: 0 auto;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .logo {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .keybox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .keybox[hidden] { display: none !important; }
+
+    .keybox label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .keybox input {
+      width: min(280px, 42vw);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .wrap {
+      width: min(1080px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 56px 0 96px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(40px, 6vw, 64px);
+      font-weight: 600;
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+
+    .lede {
+      margin: 16px auto 0;
+      color: var(--muted);
+      max-width: 34em;
+      line-height: 1.55;
+      font-size: 19px;
+      font-weight: 400;
+    }
+
+    input, textarea, select, button {
+      font: inherit;
+      color: var(--ink);
+    }
+
+    input, textarea, select {
+      width: 100%;
+      background: var(--fill);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 11px 14px;
+      outline: none;
+      transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      background: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.16);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 22px;
+    }
+
+    .card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+      margin: 0 0 20px;
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+
+    .drop {
+      border: 1px dashed rgba(0, 0, 0, 0.14);
+      border-radius: 16px;
+      min-height: 168px;
+      padding: 24px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      cursor: pointer;
+      background: var(--fill);
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+    }
+
+    .drop:hover, .drop.drag {
+      border-color: var(--accent);
+      background: #eef6ff;
+      transform: scale(1.01);
+    }
+
+    .drop svg { margin-bottom: 10px; }
+    .drop strong { display: block; font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .drop span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+    canvas {
+      width: 100%;
+      height: 52px;
+      margin-top: 14px;
+      border-radius: 10px;
+      background: var(--fill);
+    }
+
+    .meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .chip {
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: var(--fill);
+      color: var(--ink);
+    }
+
+    .chip.bad { color: var(--bad); background: #fce8ea; }
+    .chip.ok { color: var(--ok); background: #e4f6e8; }
+
+    .fields {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    label.field {
+      display: grid;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .checks {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .checks label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .checks input { width: auto; accent-color: var(--accent); }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      border-radius: 980px;
+      padding: 12px 22px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 500;
+      font-size: 17px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+      transition: background 0.15s, transform 0.12s;
+    }
+
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.985); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn.ghost {
+      background: var(--fill);
+      color: var(--ink);
+    }
+    .btn.ghost:hover { background: #ebebed; }
+
+    .status {
+      margin-top: 12px;
+      min-height: 1.4em;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .status.bad { color: var(--bad); }
+    .status.ok { color: var(--ok); }
+
+    audio { width: 100%; margin-top: 10px; }
+    .empty {
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    .voice-id {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--fill);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      word-break: break-all;
+      font-size: 13px;
+    }
+
+    .copy {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+      white-space: nowrap;
+      font-size: 15px;
+    }
+
+    .mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.32);
+      display: none;
+      place-items: center;
+      z-index: 40;
+      padding: 20px;
+    }
+
+    .mask.open {
+      display: grid;
+    }
+
+    .mask.loading {
+      z-index: 50;
+      background: rgba(255, 255, 255, 0.56);
+      backdrop-filter: saturate(180%) blur(20px);
+    }
+
+    .mask.dialog-mask {
+      z-index: 60;
+    }
+
+    .loader {
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(0, 0, 0, 0.08);
+      border-top-color: var(--accent);
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loader strong {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+
+    .loader span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .dialog {
+      width: min(360px, 100%);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(20px);
+      border-radius: 14px;
+      padding: 22px 20px 16px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+    }
+
+    .dialog h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .dialog p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    .dialog .btn { margin: 0; font-size: 17px; }
+
+    @media (max-width: 860px) {
+      .grid, .row { grid-template-columns: 1fr; }
+      .hero { margin-bottom: 28px; }
+      .lede { font-size: 17px; }
+      .nav-inner { flex-wrap: wrap; padding: 8px 0; }
+      .keybox { width: 100%; }
+      .keybox input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="logo">Voice Clone</div>
+      <div class="keybox">
+        <label for="apiKey">API Key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="sk-..." />
+      </div>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <header class="hero">
+      <h1>把声音留下来。</h1>
+      <p class="lede">上传 10 秒到 5 分钟的录音，一键复刻音色，再用同一把声音合成新的内容。</p>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2>上传并复刻</h2>
+        <div class="drop" id="drop" tabindex="0">
+          <div>
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+              <rect x="8" y="14" width="20" height="14" rx="4" stroke="#0071e3" stroke-width="1.8"/>
+              <path d="M18 8v12M18 8l-4 4M18 8l4 4" stroke="#0071e3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <strong>拖入音频，或点这里选择</strong>
+            <span>mp3 / m4a / wav · 10 秒–5 分钟 · 不超过 20 MB<br>超过 5 分钟会自动截取前面一段</span>
+          </div>
+        </div>
+        <input id="file" type="file" accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/wav" hidden />
+        <canvas id="wave" hidden></canvas>
+        <div class="meta" id="meta"></div>
+
+        <div class="fields">
+          <label class="field">公网音频 URL（可选，不上传文件时使用）
+            <input id="audioUrl" placeholder="https://.../sample.wav" />
+          </label>
+          <div class="row">
+            <label class="field">模型
+              <select id="model">
+                <option value="MiniMax/speech-2.8-hd">MiniMax/speech-2.8-hd</option>
+                <option value="MiniMax/speech-2.8-turbo">MiniMax/speech-2.8-turbo</option>
+                <option value="MiniMax/speech-02-hd">MiniMax/speech-02-hd</option>
+                <option value="MiniMax/speech-02-turbo">MiniMax/speech-02-turbo</option>
+              </select>
+            </label>
+            <label class="field">voice_id
+              <input id="voiceId" />
+            </label>
+          </div>
+          <label class="field">复刻试听文案
+            <textarea id="cloneText" rows="3">你好，这是用复刻音色生成的试听。</textarea>
+          </label>
+          <label class="field">语种增强
+            <select id="lang">
+              <option value="auto">auto</option>
+              <option value="Chinese">Chinese</option>
+              <option value="Chinese,Yue">Chinese,Yue</option>
+              <option value="English">English</option>
+            </select>
+          </label>
+          <div class="checks">
+            <label><input type="checkbox" id="denoise" /> 降噪</label>
+            <label><input type="checkbox" id="norm" /> 音量归一化</label>
+          </div>
+          <button class="btn" id="cloneBtn" type="button">开始复刻</button>
+          <div class="status" id="cloneStatus"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>试听与合成</h2>
+        <div id="resultEmpty" class="empty">复刻完成后，这里会给出新的 voice_id 和官方试听音频。随后可以用同一音色合成任意文本。</div>
+        <div id="resultBox" hidden>
+          <div class="field">新音色 ID</div>
+          <div class="voice-id">
+            <span id="resultVoice"></span>
+            <button class="copy" id="copyBtn" type="button">复制</button>
+          </div>
+          <p class="meta" id="resultMeta"></p>
+          <label class="field">官方试听
+            <audio id="demoPlayer" controls></audio>
+          </label>
+          <label class="field">用该音色继续合成
+            <textarea id="ttsText" rows="4">今天天气真不错，我们一起出去走走吧。</textarea>
+          </label>
+          <div class="row">
+            <label class="field">语速
+              <input id="speed" type="number" min="0.5" max="2" step="0.1" value="1" />
+            </label>
+            <label class="field">情感
+              <select id="emotion">
+                <option value="">自动</option>
+                <option value="happy">高兴</option>
+                <option value="sad">悲伤</option>
+                <option value="angry">愤怒</option>
+                <option value="calm">中性</option>
+                <option value="surprised">惊讶</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn ghost" id="ttsBtn" type="button">合成语音</button>
+          <audio id="ttsPlayer" controls hidden></audio>
+          <div class="status" id="ttsStatus"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="mask loading" id="loadMask">
+    <div class="loader" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <strong id="loadTitle">正在复刻音色</strong>
+      <span id="loadHint">上传并调用接口中，请稍候…</span>
+    </div>
+  </div>
+
+  <div class="mask dialog-mask" id="errMask">
+    <div class="dialog" role="alertdialog" aria-labelledby="errTitle" aria-describedby="errMsg">
+      <h3 id="errTitle">无法完成</h3>
+      <p id="errMsg"></p>
+      <button class="btn" id="errOk" type="button">知道了</button>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fileInput = $("file");
+    const drop = $("drop");
+    const wave = $("wave");
+    const meta = $("meta");
+    const apiKey = $("apiKey");
+    const voiceId = $("voiceId");
+    let currentFile = null;
+    let objectUrl = "";
+
+    apiKey.value = localStorage.getItem("dashscope_api_key") || "";
+    apiKey.addEventListener("change", () => {
+      localStorage.setItem("dashscope_api_key", apiKey.value.trim());
+    });
+
+    const stamp = () => {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, "0");
+      const rand = Math.random().toString(36).slice(2, 6);
+      return `clone${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${rand}`;
+    };
+
+    const CLONE_STORE = "cloned_voices";
+    const loadClones = () => {
+      try { return JSON.parse(localStorage.getItem(CLONE_STORE) || "{}"); }
+      catch { return {}; }
+    };
+    const saveClone = (record) => {
+      const all = loadClones();
+      all[record.voice_id] = record;
+      localStorage.setItem(CLONE_STORE, JSON.stringify(all));
+      localStorage.setItem("last_voice_id", record.voice_id);
+    };
+    const isDuplicate = (raw) => /duplicate|已存在|已经复刻/i.test(String(raw || ""));
+
+    const applyResult = (record, reused = false) => {
+      $("resultEmpty").hidden = true;
+      $("resultBox").hidden = false;
+      $("resultVoice").textContent = record.voice_id;
+      $("resultMeta").textContent = reused
+        ? "该音色已复刻过，不会再次调用复刻接口。"
+        : (record.input_sensitive
+          ? "输入音频命中风控，请更换样本后重试。"
+          : `request_id ${record.request_id || "—"}${record.trimmed ? " · 已截取前 4 分 55 秒" : ""}`);
+      $("demoPlayer").src = record.demo_audio || "";
+      $("demoPlayer").hidden = !record.demo_audio;
+      setStatus("cloneStatus", reused ? "该音色已存在，可直接在右侧合成。" : "复刻完成，右侧可试听。", "ok");
+      $("cloneBtn").disabled = true;
+      $("cloneBtn").textContent = "已复刻，可直接合成";
+    };
+
+    const syncCloneBtn = () => {
+      const id = voiceId.value.trim();
+      const hit = id && loadClones()[id];
+      if (hit) applyResult(hit, true);
+      else {
+        $("cloneBtn").disabled = false;
+        $("cloneBtn").textContent = "开始复刻";
+      }
+    };
+
+    const lastId = localStorage.getItem("last_voice_id");
+    voiceId.value = lastId || stamp();
+
+    const ZH_ERRORS = [
+      ["voice clone voice id duplicate", "该音色已经复刻过，无需再次复刻，可直接合成。"],
+      ["voice id duplicate", "该音色已经复刻过，无需再次复刻，可直接合成。"],
+      ["duplicate", "该音色已经复刻过，无需再次复刻，可直接合成。"],
+      ["duration too long", "音频超过 5 分钟，请换一段不超过 5 分钟的录音。"],
+      ["too long", "音频过长，复刻需在 10 秒到 5 分钟之间。"],
+      ["too short", "音频过短，复刻至少需要 10 秒。"],
+      ["invalid api-key", "API Key 无效，请检查后重试。"],
+      ["invalid api key", "API Key 无效，请检查后重试。"],
+      ["unauthorized", "鉴权失败，请检查 API Key。"],
+      ["throttl", "请求过于频繁，请稍后重试。"],
+      ["rate limit", "触发限流，请稍后重试。"],
+      ["timeout", "请求超时，请稍后重试。"],
+      ["sensitive", "内容命中风控，请更换音频或文案。"],
+    ];
+
+    const toZh = (raw) => {
+      const text = String(raw || "").trim();
+      const lower = text.toLowerCase();
+      for (const [en, zh] of ZH_ERRORS) {
+        if (lower.includes(en)) return zh;
+      }
+      return text || "操作失败，请稍后重试。";
+    };
+
+    const showError = (raw) => {
+      hideLoading();
+      const msg = toZh(raw);
+      $("errMsg").textContent = msg;
+      $("errMask").classList.add("open");
+      $("errOk").focus();
+    };
+
+    const closeError = () => $("errMask").classList.remove("open");
+    $("errOk").addEventListener("click", closeError);
+    $("errMask").addEventListener("click", (e) => {
+      if (e.target === $("errMask")) closeError();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeError();
+    });
+
+    let loadTimer = 0;
+    const showLoading = (title, hint) => {
+      closeError();
+      $("loadTitle").textContent = title;
+      $("loadHint").textContent = hint;
+      $("loadMask").classList.add("open");
+      document.body.style.overflow = "hidden";
+      const started = Date.now();
+      clearInterval(loadTimer);
+      loadTimer = setInterval(() => {
+        const sec = Math.floor((Date.now() - started) / 1000);
+        $("loadHint").textContent = `${hint} 已等待 ${sec} 秒`;
+      }, 1000);
+    };
+    const hideLoading = () => {
+      clearInterval(loadTimer);
+      loadTimer = 0;
+      $("loadMask").classList.remove("open");
+      document.body.style.overflow = "";
+    };
+
+    const setStatus = (id, text, kind = "") => {
+      const el = $(id);
+      el.textContent = text;
+      el.className = "status" + (kind ? " " + kind : "");
+    };
+
+    const fmt = (sec) => {
+      const s = Math.round(sec);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+
+    const drawWave = async (file) => {
+      const ctx = wave.getContext("2d");
+      const buf = await file.arrayBuffer();
+      const ac = new AudioContext();
+      const audio = await ac.decodeAudioData(buf.slice(0));
+      const data = audio.getChannelData(0);
+      const w = wave.width = wave.clientWidth * 2;
+      const h = wave.height = 112;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#f5f5f7";
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = "#0071e3";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const step = Math.max(1, Math.floor(data.length / w));
+      for (let x = 0; x < w; x++) {
+        let min = 1, max = -1;
+        for (let i = 0; i < step; i++) {
+          const v = data[x * step + i] || 0;
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        const y1 = (1 - (max + 1) / 2) * h;
+        const y2 = (1 - (min + 1) / 2) * h;
+        ctx.moveTo(x + 0.5, y1);
+        ctx.lineTo(x + 0.5, y2);
+      }
+      ctx.stroke();
+      await ac.close();
+      return audio.duration;
+    };
+
+    const showFile = async (file) => {
+      currentFile = file;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      const chips = [];
+      chips.push(`<span class="chip">${file.name}</span>`);
+      chips.push(`<span class="chip">${(file.size / 1024 / 1024).toFixed(2)} MB</span>`);
+      if (file.size > 20 * 1024 * 1024) chips.push(`<span class="chip bad">超过 20 MB</span>`);
+      try {
+        wave.hidden = false;
+        const duration = await drawWave(file);
+        if (duration < 10) {
+          chips.push(`<span class="chip bad">时长 ${fmt(duration)}</span>`);
+          chips.push(`<span class="chip bad">不足 10 秒，无法复刻</span>`);
+        } else if (duration > 300) {
+          chips.push(`<span class="chip">时长 ${fmt(duration)}</span>`);
+          chips.push(`<span class="chip ok">将自动截取前 4 分 55 秒</span>`);
+        } else {
+          chips.push(`<span class="chip ok">时长 ${fmt(duration)}</span>`);
+        }
+      } catch {
+        wave.hidden = true;
+        chips.push(`<span class="chip">无法解码波形，仍可尝试上传</span>`);
+      }
+      meta.innerHTML = chips.join("");
+    };
+
+    drop.addEventListener("click", () => fileInput.click());
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      drop.classList.remove("drag");
+      const file = e.dataTransfer.files[0];
+      if (file) showFile(file);
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) showFile(fileInput.files[0]);
+    });
+
+    voiceId.addEventListener("input", syncCloneBtn);
+    syncCloneBtn();
+
+    $("cloneBtn").addEventListener("click", async () => {
+      const btn = $("cloneBtn");
+      const id = voiceId.value.trim();
+      const cached = loadClones()[id];
+      if (cached) {
+        applyResult(cached, true);
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "复刻中…";
+      setStatus("cloneStatus", "正在处理音频并复刻，可能需要一点时间…");
+      showLoading("正在复刻音色", "上传音频并调用百炼接口中，请稍候。");
+      const body = new FormData();
+      body.set("api_key", apiKey.value.trim());
+      body.set("model", $("model").value);
+      body.set("voice_id", id);
+      body.set("text", $("cloneText").value.trim());
+      body.set("language_boost", $("lang").value);
+      body.set("need_noise_reduction", $("denoise").checked);
+      body.set("need_volume_normalization", $("norm").checked);
+      if (currentFile) body.set("file", currentFile);
+      if ($("audioUrl").value.trim()) body.set("audio_url", $("audioUrl").value.trim());
+
+      try {
+        const res = await fetch("/api/clone", { method: "POST", body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || `请求失败 ${res.status}`);
+          if (isDuplicate(detail)) {
+            const record = { voice_id: id, demo_audio: "", request_id: "", reused: true };
+            saveClone(record);
+            applyResult(record, true);
+            showError("该音色已经复刻过，无需再次复刻，可直接合成。");
+            return;
+          }
+          throw new Error(detail);
+        }
+        const record = {
+          voice_id: data.voice_id || id,
+          demo_audio: data.demo_audio || "",
+          request_id: data.request_id || "",
+          trimmed: !!data.trimmed,
+          input_sensitive: !!data.input_sensitive,
+        };
+        saveClone(record);
+        applyResult(record, false);
+      } catch (err) {
+        const msg = err.message || "复刻失败";
+        setStatus("cloneStatus", toZh(msg), "bad");
+        showError(msg);
+        btn.disabled = false;
+        btn.textContent = "开始复刻";
+      } finally {
+        hideLoading();
+      }
+    });
+
+    $("copyBtn").addEventListener("click", async () => {
+      await navigator.clipboard.writeText($("resultVoice").textContent);
+      $("copyBtn").textContent = "已复制";
+      setTimeout(() => { $("copyBtn").textContent = "复制"; }, 1200);
+    });
+
+    $("ttsBtn").addEventListener("click", async () => {
+      const btn = $("ttsBtn");
+      btn.disabled = true;
+      btn.textContent = "合成中…";
+      setStatus("ttsStatus", "正在合成…");
+      showLoading("正在合成语音", "调用百炼语音合成接口中，请稍候。");
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: apiKey.value.trim(),
+            model: $("model").value,
+            voice_id: $("resultVoice").textContent,
+            text: $("ttsText").value.trim(),
+            speed: Number($("speed").value || 1),
+            emotion: $("emotion").value,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detail = data.detail;
+          throw new Error(typeof detail === "string" ? detail : (detail ? JSON.stringify(detail) : `请求失败 ${res.status}`));
+        }
+        const audio = data.audio || "";
+        $("ttsPlayer").hidden = false;
+        if (/^https?:\/\//.test(audio)) {
+          $("ttsPlayer").src = audio;
+        } else {
+          const bytes = new Uint8Array(audio.match(/.{1,2}/g).map((b) => parseInt(b, 16)));
+          const blob = new Blob([bytes], { type: "audio/mpeg" });
+          $("ttsPlayer").src = URL.createObjectURL(blob);
+        }
+        setStatus("ttsStatus", "合成完成。", "ok");
+      } catch (err) {
+        const msg = err.message || "合成失败";
+        setStatus("ttsStatus", toZh(msg), "bad");
+        showError(msg);
+      } finally {
+        hideLoading();
+        btn.disabled = false;
+        btn.textContent = "合成语音";
+      }
+    });
+  </script>
+</body>
+</html>
