@@ -256,6 +256,37 @@
     }
     .btn.ghost:hover { background: #ebebed; }
 
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .actions .btn { margin-top: 0; }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .card-head h2 { margin: 0; }
+
+    .text-btn {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+
     .status {
       margin-top: 12px;
       min-height: 1.4em;
@@ -451,13 +482,19 @@
             <label><input type="checkbox" id="denoise" /> 降噪</label>
             <label><input type="checkbox" id="norm" /> 音量归一化</label>
           </div>
-          <button class="btn" id="cloneBtn" type="button">开始复刻</button>
+          <div class="actions">
+            <button class="btn" id="cloneBtn" type="button">开始复刻</button>
+            <button class="btn ghost" id="resetBtn" type="button">重置</button>
+          </div>
           <div class="status" id="cloneStatus"></div>
         </div>
       </section>
 
       <section class="card">
-        <h2>试听与合成</h2>
+        <div class="card-head">
+          <h2>试听与合成</h2>
+          <button class="text-btn" id="resetBtn2" type="button">重置</button>
+        </div>
         <div id="resultEmpty" class="empty">复刻完成后，这里会给出新的 voice_id 和官方试听音频。随后可以用同一音色合成任意文本。</div>
         <div id="resultBox" hidden>
           <div class="field">新音色 ID</div>
@@ -729,6 +766,62 @@
 
     voiceId.addEventListener("input", syncCloneBtn);
     syncCloneBtn();
+
+    const stopAudio = (el) => {
+      if (!el) return;
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    };
+
+    const resetAll = () => {
+      hideLoading();
+      closeError();
+      const oldId = voiceId.value.trim() || localStorage.getItem("last_voice_id") || "";
+      if (oldId) {
+        const all = loadClones();
+        delete all[oldId];
+        localStorage.setItem(CLONE_STORE, JSON.stringify(all));
+      }
+      localStorage.removeItem("last_voice_id");
+
+      currentFile = null;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = "";
+      fileInput.value = "";
+      wave.hidden = true;
+      const ctx = wave.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, wave.width, wave.height);
+      meta.innerHTML = "";
+
+      $("audioUrl").value = "";
+      $("model").value = "MiniMax/speech-2.8-hd";
+      $("cloneText").value = "你好，这是用复刻音色生成的试听。";
+      $("lang").value = "auto";
+      $("denoise").checked = false;
+      $("norm").checked = false;
+      voiceId.value = stamp();
+
+      $("cloneBtn").disabled = false;
+      $("cloneBtn").textContent = "开始复刻";
+      setStatus("cloneStatus", "");
+
+      $("resultEmpty").hidden = false;
+      $("resultBox").hidden = true;
+      $("resultVoice").textContent = "";
+      $("resultMeta").textContent = "";
+      stopAudio($("demoPlayer"));
+      stopAudio($("ttsPlayer"));
+      $("demoPlayer").hidden = false;
+      $("ttsPlayer").hidden = true;
+      $("ttsText").value = "今天天气真不错，我们一起出去走走吧。";
+      $("speed").value = "1";
+      $("emotion").value = "";
+      setStatus("ttsStatus", "");
+    };
+
+    $("resetBtn").addEventListener("click", resetAll);
+    $("resetBtn2").addEventListener("click", resetAll);
 
     $("cloneBtn").addEventListener("click", async () => {
       const btn = $("cloneBtn");
